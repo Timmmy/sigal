@@ -112,11 +112,12 @@ class Writer(object):
 
     def get_breadcrumb(self, paths, relpath):
         """Paths to upper directories (with titles and links)."""
-
+        print 'RELPATH: '+str(relpath)
         tmp_path = relpath
         breadcrumb = [((self.url_ext or '.'), paths[tmp_path]['title'])]
 
         while True:
+            print 'TMPPATH: '+str(tmp_path)
             tmp_path = os.path.normpath(os.path.join(tmp_path, '..'))
             if tmp_path == '.':
                 break

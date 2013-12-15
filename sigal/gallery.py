@@ -60,12 +60,22 @@ class PathsDb(object):
     methods to build this dictionnary.
 
     """
-
+    #TODO: Cleanup of removed directories seems not to be supported by default code
     def __init__(self, path, img_ext_list, vid_ext_list):
         self.img_ext_list = img_ext_list
         self.vid_ext_list = vid_ext_list
         self.logger = logging.getLogger(__name__)
-
+        #http://www.mechanicalcat.net/richard/log/Python/Simple_usage_of_Python_s_logging_module
+        hdlr = logging.FileHandler('sigal.log')
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        hdlr.setFormatter(formatter)
+        self.logger.addHandler(hdlr)
+        self.logger.setLevel(logging.DEBUG)
+        #add list of directories to ignore (avoided changing too much of the control logic => keep track of list of directories to ignore
+	#when these are encountered=> ignore them and add subdirectories to the list of dirs to ignore
+	#if .sigalignore file is found in a directory => ignore this directory and all subdirectories
+        self.ignore_dirs=[]
+        
         # basepath must to be a unicode string so that os.walk will return
         # unicode dirnames and filenames. If basepath is a str, we must
         # convert it to unicode.
@@ -76,10 +86,20 @@ class PathsDb(object):
             self.basepath = path
 
     def get_subdirs(self, path):
+        #TODO: make sure this function is covered
         """Return the list of all sub-directories of path."""
 
         subdir = [os.path.normpath(os.path.join(path, sub))
                   for sub in self.db[path].get('subdir', [])]
+        
+        self.logger.debug('WILL RETURN SUBDIRS '+str(subdir))
+        if subdir:
+            for d in subdir:
+                if d in self.ignore_dirs:
+                    subdir.remove(d)
+                    self.logger.debug('WILL NOT RETURN '+d)
+        
+        
         if subdir:
             return subdir + reduce(lambda x, y: x + y,
                                    map(self.get_subdirs, subdir))
@@ -88,28 +108,54 @@ class PathsDb(object):
 
     def build(self):
         "Build the list of directories with images"
-
+        #TODO: add the ignore stuff here 
         # The dict containing all information
         self.db = {
             'paths_list': [],
             'skipped_dir': []
         }
-
+        
         # get information for each directory
         for path, dirnames, filenames in os.walk(self.basepath):
             relpath = os.path.relpath(path, self.basepath)
+            
+            #check if ignore file exists
+            igfile=relpath+'/.sigalignore'
+            self.logger.debug(self.basepath+'/'+igfile)
+            if os.path.exists(self.basepath+'/'+igfile):
+                self.logger.debug('Ignorefile found for directory:'+relpath)
+                self.ignore_dirs.append(relpath)
+                for dirname in dirnames:
+                    # also add subdirectories to list of paths to ignore
+                    self.logger.debug('Will also ignore'+relpath+'/'+dirname)
+                    self.ignore_dirs.append(relpath+'/'+dirname)
+                    #also remove from dirnames:
+            elif relpath in self.ignore_dirs:
+                self.logger.debug('Directory was in ignore_paths array'+relpath)
+                for dirname in dirnames:
+                    self.logger.debug('Should also ignore subdirectory:'+relpath+'/'+dirname)
+                    self.ignore_dirs.append(relpath+'/'+dirname)
+            else:
+                #only include not ignored subdirs in dirnames
+                for dirname in dirnames:
+                    if os.path.exists(self.basepath+'/'+relpath+'/'+dirname+'/.sigalignore'):     
+                        dirnames.remove(dirname)
+                        self.logger.debug('This subdirectory is ignored, removed from dirnames:'+dirname)
+                    else:
+                        self.logger.debug('This subdirectory is not ignored:'+dirname)
+                self.logger.debug('Directory will not be ignored:'+relpath)
 
-            # sort images and sub-albums by name
-            filenames.sort(cmp=locale.strcoll)
-            dirnames.sort(cmp=locale.strcoll)
+                # sort images and sub-albums by name
+                filenames.sort(cmp=locale.strcoll)
+                dirnames.sort(cmp=locale.strcoll)
 
-            self.db['paths_list'].append(relpath)
-            self.db[relpath] = {
-                'medias': [f for f in filenames if os.path.splitext(f)[1]
-                           in (self.img_ext_list + self.vid_ext_list)],
-                'subdir': dirnames
-            }
-            self.db[relpath].update(get_metadata(path))
+                self.db['paths_list'].append(relpath)
+                self.db[relpath] = {
+                    'medias': [f for f in filenames if os.path.splitext(f)[1]
+                               in (self.img_ext_list + self.vid_ext_list)],
+                    'subdir': dirnames
+                }
+                self.db[relpath].update(get_metadata(path))
 
         path_media = [path for path in self.db['paths_list']
                       if self.db[path]['medias'] and path != '.']

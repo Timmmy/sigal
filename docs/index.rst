@@ -132,6 +132,10 @@ and is shown below. This file is copied to the current directory with the
 .. literalinclude:: ../sigal/templates/sigal.conf.py
    :language: python
 
+Exclude specific directories
+----------------------------
+Directories can be excluded by creating a .sigalignore in the directory that is to be excluded.
+All subdirectories will also be ignored.
 
 Templates
 ---------

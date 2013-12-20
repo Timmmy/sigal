@@ -60,7 +60,6 @@ class PathsDb(object):
     methods to build this dictionnary.
 
     """
-    #TODO: Cleanup of removed directories seems not to be supported by default code
     def __init__(self, path, img_ext_list, vid_ext_list):
         self.img_ext_list = img_ext_list
         self.vid_ext_list = vid_ext_list
@@ -86,7 +85,6 @@ class PathsDb(object):
             self.basepath = path
 
     def get_subdirs(self, path):
-        #TODO: make sure this function is covered
         """Return the list of all sub-directories of path."""
 
         subdir = [os.path.normpath(os.path.join(path, sub))
@@ -108,7 +106,7 @@ class PathsDb(object):
 
     def build(self):
         "Build the list of directories with images"
-        #TODO: add the ignore stuff here 
+        # Ignorefile code is added here
         # The dict containing all information
         self.db = {
             'paths_list': [],

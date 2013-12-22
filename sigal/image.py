@@ -20,21 +20,32 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
+# Additional copyright notice:
+#
+# Several lines of code concerning extraction of GPS data from EXIF tags where
+# taken from a GitHub Gist by Eran Sandler at
+#
+#   https://gist.github.com/erans/983821
+#
+# and partially modified. The code in question is licensed under MIT license.
+
 import logging
 import pilkit.processors
 import sys
 
 from PIL import Image as PILImage
 from PIL import ImageDraw, ImageOps
-from PIL.ExifTags import TAGS
-from pilkit.processors import Transpose
+from PIL.ExifTags import TAGS, GPSTAGS
+from pilkit.processors import Transpose, Adjust
 from pilkit.utils import save_image
 from datetime import datetime
 
 
-def generate_image(source, outname, size, format, options=None,
-                   autoconvert=True, copyright_text='', method='ResizeToFit',
-                   copy_exif_data=True):
+def _has_exif_tags(img):
+    return hasattr(img, 'info') and 'exif' in img.info
+
+
+def generate_image(source, outname, settings, options=None):
     """Image processor, rotate and resize the image.
 
     :param source: path to an image
@@ -47,7 +58,7 @@ def generate_image(source, outname, size, format, options=None,
     original_format = img.format
 
     # Preserve EXIF data
-    if copy_exif_data and hasattr(img, 'info') and 'exif' in img.info:
+    if settings['copy_exif_data'] and _has_exif_tags(img):
         options = options or {}
         options['exif'] = img.info['exif']
 
@@ -58,25 +69,31 @@ def generate_image(source, outname, size, format, options=None,
         pass
 
     # Resize the image
-    try:
-        logger.debug('Processor: %s', method)
-        processor_cls = getattr(pilkit.processors, method)
-    except AttributeError:
-        logger.error('Wrong processor name: %s', method)
-        sys.exit()
+    if settings['img_processor']:
+        try:
+            logger.debug('Processor: %s', settings['img_processor'])
+            processor_cls = getattr(pilkit.processors,
+                                    settings['img_processor'])
+        except AttributeError:
+            logger.error('Wrong processor name: %s', settings['img_processor'])
+            sys.exit()
 
-    processor = processor_cls(*size, upscale=False)
-    img = processor.process(img)
+        processor = processor_cls(*settings['img_size'], upscale=False)
+        img = processor.process(img)
 
-    if copyright_text:
-        add_copyright(img, copyright_text)
+    # Adjust the image after resizing
+    img = Adjust(**settings['adjust_options']).process(img)
 
-    format = format or img.format or original_format or 'JPEG'
-    logger.debug(u'Save resized image to {0} ({1})'.format(outname, format))
-    save_image(img, outname, format, options=options, autoconvert=autoconvert)
+    if settings['copyright']:
+        add_copyright(img, settings['copyright'])
+
+    outformat = img.format or original_format or 'JPEG'
+    logger.debug(u'Save resized image to {0} ({1})'.format(outname, outformat))
+    with open(outname, 'w') as fp:
+        save_image(img, fp, outformat, options=options, autoconvert=True)
 
 
-def generate_thumbnail(source, outname, box, format, fit=True, options=None):
+def generate_thumbnail(source, outname, box, fit=True, options=None):
     "Create a thumbnail image"
 
     logger = logging.getLogger(__name__)
@@ -88,9 +105,10 @@ def generate_thumbnail(source, outname, box, format, fit=True, options=None):
     else:
         img.thumbnail(box, PILImage.ANTIALIAS)
 
-    format = format or img.format or original_format or 'JPEG'
-    logger.debug(u'Save thumnail image to {0} ({1})'.format(outname, format))
-    save_image(img, outname, format, options=options, autoconvert=True)
+    outformat = img.format or original_format or 'JPEG'
+    logger.debug(u'Save thumnail image to {0} ({1})'.format(outname, outformat))
+    with open(outname, 'w') as fp:
+        save_image(img, fp, outformat, options=options, autoconvert=True)
 
 
 def add_copyright(img, text):
@@ -98,6 +116,29 @@ def add_copyright(img, text):
 
     draw = ImageDraw.Draw(img)
     draw.text((5, img.size[1] - 15), '\xa9 ' + text)
+
+
+def _get_exif_data(filename):
+    img = PILImage.open(filename)
+    exif = img._getexif() or {}
+    data = dict((TAGS.get(t, t), v) for (t, v) in exif.items())
+
+    if 'GPSInfo' in data:
+        gps_data = {}
+
+        for tag in data['GPSInfo']:
+            gps_data[GPSTAGS.get(tag, tag)] = data['GPSInfo'][tag]
+
+        data['GPSInfo'] = gps_data
+
+    return data
+
+
+def _get_degrees(v):
+    d = float(v[0][0]) / float(v[0][1])
+    m = float(v[1][0]) / float(v[1][1])
+    s = float(v[2][0]) / float(v[1][1])
+    return d + (m / 60.0) + (s / 3600.0)
 
 
 def get_exif_tags(source):
@@ -110,16 +151,12 @@ def get_exif_tags(source):
     if not '.jpg' in source.lower():
         return (None, None)
 
-    img = PILImage.open(source)
-
     try:
-        exif = img._getexif()
+        data = _get_exif_data(source)
     except (TypeError, IOError):
-        exif = None
         logger.warning(u'Could not read EXIF data from {0}'.format(source))
         return (None, None)
 
-    data = dict((TAGS.get(t, t), v) for (t, v) in exif.items()) if exif else {}
     simple = {}
 
     # Provide more accessible tags in the 'simple' key
@@ -139,11 +176,31 @@ def get_exif_tags(source):
 
     if 'DateTimeOriginal' in data:
         try:
-            dt = datetime.strptime(data['DateTimeOriginal'],
-                                   '%Y:%m:%d %H:%M:%S')
+            # Remove null bytes at the end if necessary
+            date = data['DateTimeOriginal'].rsplit('\x00')[0]
+            dt = datetime.strptime(date, '%Y:%m:%d %H:%M:%S')
             simple['datetime'] = dt
-        except ValueError as e:
+        except (ValueError, TypeError) as e:
             msg = u'Could not parse DateTimeOriginal of %s: %s' % (source, e)
             logger.warning(msg)
+
+    if 'GPSInfo' in data:
+        info = data['GPSInfo']
+        lat_info = info.get('GPSLatitude')
+        lon_info = info.get('GPSLongitude')
+        lat_ref_info = info.get('GPSLatitudeRef')
+        lon_ref_info = info.get('GPSLongitudeRef')
+
+        if lat_info and lon_info and lat_ref_info and lon_ref_info:
+            lat = _get_degrees(lat_info)
+            lon = _get_degrees(lon_info)
+
+            if lat_ref_info != 'N':
+                lat = 0 - lat
+
+            if lon_ref_info != 'E':
+                lon = 0 - lon
+
+            simple['gps'] = {'lat': lat, 'lon': lon}
 
     return (data, simple)

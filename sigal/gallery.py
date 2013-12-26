@@ -128,11 +128,14 @@ class PathsDb(object):
                     self.logger.debug('Will also ignore'+relpath+'/'+dirname)
                     self.ignore_dirs.append(relpath+'/'+dirname)
                     #also remove from dirnames:
+                    dirnames.remove(dirname)
             elif relpath in self.ignore_dirs:
                 self.logger.debug('Directory was in ignore_paths array'+relpath)
                 for dirname in dirnames:
                     self.logger.debug('Should also ignore subdirectory:'+relpath+'/'+dirname)
                     self.ignore_dirs.append(relpath+'/'+dirname)
+                    #also remove from dirnames:
+                    dirnames.remove(dirname)
             else:
                 #only include not ignored subdirs in dirnames
                 for dirname in dirnames:

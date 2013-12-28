@@ -106,12 +106,12 @@ class PathsDb(object):
             relpath = os.path.relpath(path, self.basepath)
             
             #check for ignore files
-            self.logger.debug('ignorefile: run with path: '+path)
+            self.logger.debug('ignorefile: run with path: '+path+' => '+str(dirnames))
             
             for dirname in dirnames:
                 #check if ignorefile exists
                 igfile=relpath+'/'+dirname+'/.sigalignore'
-                self.logger.debug('will check if file exists: '+igfile)
+                #self.logger.debug('will check if file exists: '+igfile)
                 if os.path.exists(self.basepath+'/'+igfile):
                     self.logger.debug('ignorefile found, removing this subdirectory from dirnames: '+path+'/'+dirname)
                     dirnames.remove(dirname)

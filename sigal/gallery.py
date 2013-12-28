@@ -104,7 +104,19 @@ class PathsDb(object):
         for path, dirnames, filenames in os.walk(self.basepath,
                                                  followlinks=True):
             relpath = os.path.relpath(path, self.basepath)
-
+            
+            #check for ignore files
+            self.logger.debug('ignorefile: run with path: '+path)
+            
+            for dirname in dirnames:
+                #check if ignorefile exists
+                igfile=relpath+'/'+dirname+'/.sigalignore'
+                self.logger.debug('will check if file exists: '+igfile)
+                if os.path.exists(self.basepath+'/'+igfile):
+                    self.logger.debug('ignorefile found, removing this subdirectory from dirnames: '+path+'/'+dirname)    
+                else:
+                    self.logger.debug('no ignorefile found, keeping this subdirectory: '+path+'/'+dirname)
+                    
             # sort images and sub-albums by name
             filenames.sort(**sort_args)
             dirnames.sort(**sort_args)

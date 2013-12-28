@@ -113,7 +113,8 @@ class PathsDb(object):
                 igfile=relpath+'/'+dirname+'/.sigalignore'
                 self.logger.debug('will check if file exists: '+igfile)
                 if os.path.exists(self.basepath+'/'+igfile):
-                    self.logger.debug('ignorefile found, removing this subdirectory from dirnames: '+path+'/'+dirname)    
+                    self.logger.debug('ignorefile found, removing this subdirectory from dirnames: '+path+'/'+dirname)
+                    dirnames.remove(dirname)
                 else:
                     self.logger.debug('no ignorefile found, keeping this subdirectory: '+path+'/'+dirname)
                     

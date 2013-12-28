@@ -32,6 +32,7 @@ import os
 import shutil
 import sys
 import zipfile
+import copy
 
 from os.path import join, normpath
 from PIL import Image as PILImage
@@ -107,8 +108,8 @@ class PathsDb(object):
             
             #check for ignore files
             self.logger.debug('ignorefile: run with path: '+path+' => '+str(dirnames))
-            
-            for dirname in dirnames:
+            dirnamescopy=copy.deepcopy(dirnames)
+            for dirname in dirnamescopy:
                 #check if ignorefile exists
                 igfile=relpath+'/'+dirname+'/.sigalignore'
                 #self.logger.debug('will check if file exists: '+igfile)
@@ -117,7 +118,7 @@ class PathsDb(object):
                     dirnames.remove(dirname)
                 else:
                     self.logger.debug('no ignorefile found, keeping this subdirectory: '+path+'/'+dirname)
-                    
+                self.logger.debug('dirnames is now: '+str(dirnames))   
             # sort images and sub-albums by name
             filenames.sort(**sort_args)
             dirnames.sort(**sort_args)

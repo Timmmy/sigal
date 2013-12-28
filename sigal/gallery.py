@@ -32,7 +32,7 @@ import os
 import shutil
 import sys
 import zipfile
-import copy
+from copy import deepcopy
 
 from os.path import join, normpath
 from PIL import Image as PILImage
@@ -108,7 +108,7 @@ class PathsDb(object):
             
             #check for ignore files
             self.logger.debug('ignorefile: run with path: '+path+' => '+str(dirnames))
-            dirnamescopy=copy.deepcopy(dirnames)
+            dirnamescopy=deepcopy(dirnames)
             for dirname in dirnamescopy:
                 #check if ignorefile exists
                 igfile=relpath+'/'+dirname+'/.sigalignore'

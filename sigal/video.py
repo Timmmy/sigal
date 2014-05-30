@@ -119,7 +119,7 @@ def generate_video(source, outname, size, options=None):
     logger.debug('Processing video: %s', ' '.join(cmd))
     try:
         check_subprocess(cmd, error_msg='Failed to process ' + source)
-    except subprocess.CalledProcessError:
+    except:
         os.remove(outname)
         logger.debug('Error while converting, removing outputfile: ',outname)
         return
